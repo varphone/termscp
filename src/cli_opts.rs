@@ -45,6 +45,9 @@ pub struct Args {
     /// provide password from CLI
     #[argh(option, short = 'P')]
     pub password: Option<String>,
+    /// provide secure password from CLI
+    #[argh(option, short = 'S')]
+    pub secure_password: Option<String>,
     /// disable logging
     #[argh(switch, short = 'q')]
     pub quiet: bool,

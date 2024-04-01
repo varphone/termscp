@@ -37,7 +37,20 @@ use filetransfer::FileTransferParams;
 use system::logging::{self, LogLevel};
 
 fn main() {
-    let args: Args = argh::from_env();
+    let mut args: Args = argh::from_env();
+
+    if let Some(ref secure_password) = args.secure_password {
+        match decrypt_secure_password(&secure_password) {
+            Ok(password) => {
+                args.password = Some(password);
+            }
+            Err(err) => {
+                eprintln!("{err}");
+                std::process::exit(255);
+            }
+        }
+    }
+
     // Parse args
     let run_opts: RunOpts = match parse_args(args) {
         Ok(opts) => opts,
@@ -57,6 +70,35 @@ fn main() {
     info!("termscp terminated with exitcode {}", rc);
     // Then return
     std::process::exit(rc);
+}
+
+/// Decrypt secure password
+///
+/// # Arguments
+///
+/// * `secure_password` - Encrypted password, base64 encoded string
+///
+/// # Returns
+///
+/// * `Result<String, String>` - Decrypted password or error message
+fn decrypt_secure_password(secure_password: &str) -> Result<String, String> {
+    use magic_crypt::{MagicCrypt256, MagicCryptTrait};
+
+    const KEY_DATA: &[u8] = include_bytes!("../assets/secure-key.bin");
+
+    let i1 = KEY_DATA[128] as usize;
+    let i2 = KEY_DATA[129] as usize;
+    let mut key_buf = [0u8; 32];
+    let mut iv_buf = [0u8; 16];
+    key_buf.copy_from_slice(&KEY_DATA[i1..i1 + 32]);
+    iv_buf.copy_from_slice(&KEY_DATA[i2..i2 + 16]);
+
+    let key = String::from_utf8_lossy(&key_buf);
+    let iv = String::from_utf8_lossy(&iv_buf);
+
+    let mc: MagicCrypt256 = new_magic_crypt!(key, 256, iv);
+    mc.decrypt_base64_to_string(secure_password)
+        .map_err(|e| format!("Could not decrypt secure password: {e}"))
 }
 
 /// Parse arguments

@@ -114,3 +114,10 @@ incremental = true
 
 [profile.release]
 strip = true
+
+[profile.minsize]
+inherits = "release"
+lto = true
+opt-level = "z"
+panic = "abort"
+strip = true
