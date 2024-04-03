@@ -82,7 +82,9 @@ fn main() {
 ///
 /// * `Result<String, String>` - Decrypted password or error message
 fn decrypt_secure_password(secure_password: &str) -> Result<String, String> {
-    use magic_crypt::{MagicCrypt256, MagicCryptTrait};
+    use aes::cipher::{block_padding::NoPadding, BlockDecryptMut, KeyIvInit};
+    type Aes256CbcDec = cbc::Decryptor<aes::Aes256>;
+    use base64::prelude::*;
 
     const KEY_DATA: &[u8] = include_bytes!("../assets/secure-key.bin");
 
@@ -93,12 +95,17 @@ fn decrypt_secure_password(secure_password: &str) -> Result<String, String> {
     key_buf.copy_from_slice(&KEY_DATA[i1..i1 + 32]);
     iv_buf.copy_from_slice(&KEY_DATA[i2..i2 + 16]);
 
-    let key = String::from_utf8_lossy(&key_buf);
-    let iv = String::from_utf8_lossy(&iv_buf);
+    let input = BASE64_STANDARD
+        .decode(secure_password)
+        .map_err(|e| format!("Could not decode base64: {e}"))?;
 
-    let mc: MagicCrypt256 = new_magic_crypt!(key, 256, iv);
-    mc.decrypt_base64_to_string(secure_password)
-        .map_err(|e| format!("Could not decrypt secure password: {e}"))
+    let pt = Aes256CbcDec::new(&key_buf.into(), &iv_buf.into())
+        .decrypt_padded_vec_mut::<NoPadding>(&input)
+        .unwrap();
+
+    String::from_utf8(pt)
+        .map(|s| s.trim_matches('\0').to_string())
+        .map_err(|e| format!("Could not convert to utf8: {e}"))
 }
 
 /// Parse arguments
